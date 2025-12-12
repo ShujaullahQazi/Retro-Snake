@@ -233,14 +233,17 @@ export const useSnakeGame = () => {
   }, [startNextLevel]);
 
   const gameTick = useCallback(() => {
+    // 1. Check Status
     if (statusRef.current !== GameStatus.PLAYING) return;
 
+    // 2. Handle Direction Queue
     if (moveQueueRef.current.length > 0) {
         const nextDir = moveQueueRef.current.shift() as Direction;
         directionRef.current = nextDir;
         setDirection(nextDir); 
     }
 
+    // 3. Handle Bonus Timer
     if (bonusFoodRef.current) {
         setBonusFoodTimer(t => {
             if (t <= 1) {
@@ -252,87 +255,97 @@ export const useSnakeGame = () => {
         });
     }
 
-    setSnake(prevSnake => {
-      if (statusRef.current !== GameStatus.PLAYING) return prevSnake;
+    // 4. Calculate Physics (Using Refs for stability)
+    const snake = snakeRef.current; //
+    const head = snake[0];
+    const dir = directionRef.current;
+    const nextHead = { ...head };
 
-      const head = prevSnake[0];
-      const dir = directionRef.current;
-      const nextHead = { ...head };
+    switch (dir) {
+      case Direction.UP: nextHead.y -= 1; break;
+      case Direction.DOWN: nextHead.y += 1; break;
+      case Direction.LEFT: nextHead.x -= 1; break;
+      case Direction.RIGHT: nextHead.x += 1; break;
+    }
 
-      switch (dir) {
-        case Direction.UP: nextHead.y -= 1; break;
-        case Direction.DOWN: nextHead.y += 1; break;
-        case Direction.LEFT: nextHead.x -= 1; break;
-        case Direction.RIGHT: nextHead.x += 1; break;
-      }
+    const walls = getWalls(levelRef.current);
 
-      const walls = getWalls(levelRef.current);
+    // 5. Collision Detection
+    if (
+      nextHead.x < 0 || nextHead.x >= BOARD_WIDTH || 
+      nextHead.y < 0 || nextHead.y >= BOARD_HEIGHT ||
+      snake.some(s => s.x === nextHead.x && s.y === nextHead.y) ||
+      walls.some(w => w.x === nextHead.x && w.y === nextHead.y)
+    ) {
+      setStatus(GameStatus.GAME_OVER);
+      statusRef.current = GameStatus.GAME_OVER;
+      playSound('die');
+      return;
+    }
 
-      if (
-        nextHead.x < 0 || nextHead.x >= BOARD_WIDTH || 
-        nextHead.y < 0 || nextHead.y >= BOARD_HEIGHT ||
-        prevSnake.some(s => s.x === nextHead.x && s.y === nextHead.y) ||
-        walls.some(w => w.x === nextHead.x && w.y === nextHead.y)
-      ) {
-        setStatus(GameStatus.GAME_OVER);
-        statusRef.current = GameStatus.GAME_OVER;
-        playSound('die');
-        return prevSnake;
-      }
-
-      const newSnake = [nextHead, ...prevSnake];
-      let eaten = false;
+    // 6. Food Logic
+    const newSnake = [nextHead, ...snake];
+    let eaten = false;
+    
+    // Check Regular Food
+    if (nextHead.x === foodRef.current.x && nextHead.y === foodRef.current.y) {
+      eaten = true;
+      playSound('eat');
+      setScore(s => s + POINTS_NORMAL); //
+      foodsEatenRef.current += 1;
+      totalFoodsEatenRef.current += 1;
       
-      if (nextHead.x === foodRef.current.x && nextHead.y === foodRef.current.y) {
-        eaten = true;
-        playSound('eat');
-        setScore(s => s + POINTS_NORMAL);
-        foodsEatenRef.current += 1;
-        totalFoodsEatenRef.current += 1;
-        
-        if (foodsEatenRef.current >= FOODS_PER_LEVEL) {
-            if (levelRef.current >= MAX_LEVEL) {
-                setStatus(GameStatus.GAME_WON);
-                statusRef.current = GameStatus.GAME_WON;
-                playSound('win');
-                return newSnake;
-            } else {
-                setStatus(GameStatus.LEVEL_COMPLETE);
-                statusRef.current = GameStatus.LEVEL_COMPLETE;
-                playSound('level_up');
-                return newSnake; 
-            }
-        } 
+      // Level Up Check
+      if (foodsEatenRef.current >= FOODS_PER_LEVEL) {
+          if (levelRef.current >= MAX_LEVEL) {
+              setStatus(GameStatus.GAME_WON);
+              statusRef.current = GameStatus.GAME_WON;
+              playSound('win');
+              setSnake(newSnake); // Update visuals before stopping
+              return;
+          } else {
+              setStatus(GameStatus.LEVEL_COMPLETE);
+              statusRef.current = GameStatus.LEVEL_COMPLETE;
+              playSound('level_up');
+              setSnake(newSnake); // Update visuals before stopping
+              return; 
+          }
+      } 
 
-        if (totalFoodsEatenRef.current > 0 && totalFoodsEatenRef.current % FOODS_TO_BONUS === 0) {
-            const bf = generateFood(newSnake, walls, [foodRef.current]);
-            setBonusFood(bf);
-            playSound('big_appear');
-            const ticksFor3Sec = Math.floor(BONUS_DURATION_MS / speedRef.current);
-            setBonusFoodTimer(ticksFor3Sec);
-            setBonusFoodMaxTimer(ticksFor3Sec);
-        }
-
-        const bf = bonusFoodRef.current ? [bonusFoodRef.current] : [];
-        setFood(generateFood(newSnake, walls, bf));
+      // Spawn Bonus
+      if (totalFoodsEatenRef.current > 0 && totalFoodsEatenRef.current % FOODS_TO_BONUS === 0) {
+          const bf = generateFood(newSnake, walls, [foodRef.current]);
+          setBonusFood(bf);
+          playSound('big_appear');
+          // Calculate timer based on current speed
+          const ticksFor3Sec = Math.floor(BONUS_DURATION_MS / speedRef.current);
+          setBonusFoodTimer(ticksFor3Sec);
+          setBonusFoodMaxTimer(ticksFor3Sec);
       }
 
-      if (bonusFoodRef.current && nextHead.x === bonusFoodRef.current.x && nextHead.y === bonusFoodRef.current.y) {
-          if (!eaten) eaten = true; 
-          playSound('big_eat');
-          setScore(s => s + POINTS_BIG);
-          setBonusFood(null);
-          setBonusFoodTimer(0);
-      }
+      // Respawn Food
+      const bf = bonusFoodRef.current ? [bonusFoodRef.current] : [];
+      setFood(generateFood(newSnake, walls, bf));
+    }
 
-      if (!eaten) {
-        newSnake.pop(); 
-      }
+    // Check Bonus Food
+    if (bonusFoodRef.current && nextHead.x === bonusFoodRef.current.x && nextHead.y === bonusFoodRef.current.y) {
+        if (!eaten) eaten = true; // Grow if not already grown from normal food
+        playSound('big_eat');
+        setScore(s => s + POINTS_BIG); //
+        setBonusFood(null);
+        setBonusFoodTimer(0);
+    }
 
-      return newSnake;
-    });
+    // 7. Move Snake
+    if (!eaten) {
+      newSnake.pop(); 
+    }
+
+    setSnake(newSnake);
   }, []);
 
+  
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
     if (status === GameStatus.PLAYING) {
