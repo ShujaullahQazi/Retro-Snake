@@ -1,0 +1,5 @@
+{
+  "name": "Nokia Snake 3310",
+  "description": "A faithful recreation of the legendary Nokia 3310 Snake game using React and Tailwind CSS.",
+  "requestFramePermissions": []
+}
