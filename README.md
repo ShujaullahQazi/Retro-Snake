@@ -17,70 +17,43 @@ This project is a faithful recreation of the legendary Nokia 3310 Snake game. It
 
 ## 📂 Architecture
 
-### 1\. The Game Loop (`useSnakeGame.ts`)
+### 1. State Management (Reducer Pattern)
 
-The game is driven by a `setInterval` loop. We avoid React "stale closure" pitfalls by using a combination of `useState` (for triggering renders) and `useRef` (for instantaneous state access inside the interval).
+The core game logic has been migrated to a **pure Reducer** (`hooks/gameReducer.ts`). This ensures predictable state transitions and decoupling from React's render cycle.
 
-**Key Implementation - The Move Queue:**
-To prevent the snake from colliding with itself during rapid turns (e.g., pressing Up -\> Left -\> Down quickly), we implement a move queue buffer.
-
-```typescript
-// hooks/useSnakeGame.ts
-
-// 1. Queue logic in input handler
-const lastPlannedDir = moveQueueRef.current.length > 0 
-    ? moveQueueRef.current[moveQueueRef.current.length - 1] 
-    : directionRef.current;
-
-if (newDir !== lastPlannedDir && moveQueueRef.current.length < 2) {
-    moveQueueRef.current.push(newDir); // Buffer the move
-}
-
-// 2. Execution in Game Tick
-if (moveQueueRef.current.length > 0) {
-    const nextDir = moveQueueRef.current.shift() as Direction;
-    directionRef.current = nextDir;
-    setDirection(nextDir); 
-}
-```
-
-### 2\. Rendering Strategy (`GameBoard.tsx`)
-
-We use a CSS Grid instead of `<canvas>`. To ensure 60fps performance with a React render loop, we optimize collision checks using `Set` lookups.
-
-**Optimization Pattern:**
-Instead of `array.some()` which is O(N) for every cell, we map snake segments to a string Set (O(1) lookup).
+-   **`gameReducer.ts`**: Handles all game rules (Movement, Collision, Food, Level Up).
+-   **`useSnakeGame.ts`**: A thin wrapper that connects the Reducer to the Game Loop and Audio system.
 
 ```typescript
-// components/GameBoard.tsx
-const snakeSet = useMemo(() => {
-    return new Set(snake.map(s => `${s.x},${s.y}`));
-}, [snake]);
-
-// Inside the grid loop:
-const coord = `${x},${y}`;
-const isSnake = snakeSet.has(coord); // O(1)
-```
-
-### 3\. Audio System (`utils/sound.ts`)
-
-We synthesize audio purely via code to keep the bundle size minimal and the latency low.
-
-```typescript
-// utils/sound.ts
-export const playSound = (type: SoundType) => {
-  const ctx = initAudio();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  
-  // Square waves mimic the Nokia buzzer
-  osc.type = 'square'; 
-  
-  // ... sound synthesis logic
-  osc.start(now);
-  osc.stop(now + duration);
+// hooks/gameReducer.ts
+export const gameReducer = (state: GameState, action: GameAction): GameState => {
+    switch (action.type) {
+        case 'TICK':
+            // Logic for movement, collision, eating
+            return { ...state, snake: newSnake, status: newStatus };
+        case 'CHANGE_DIRECTION':
+             // Logic for direction changes with 180-degree turn prevention
+            return { ...state, direction: action.direction };
+        // ...
+    }
 };
 ```
+
+### 2. The Game Loop (`hooks/useGameLoop.ts`)
+
+The `setInterval` logic is abstracted into a custom hook `useGameLoop`, which accepts a callback and a speed. This keeps the component clean and handles the "stale closure" problem via refs.
+
+### 3. Component Structure
+
+The UI is broken down into modular components for maintainability:
+
+-   `components/GameBoard.tsx`: The grid rendering engine (optimized with `Set` lookups).
+-   `components/ScoreBoard.tsx`: Top HUD displaying score/level.
+-   `components/overlays/*.tsx`: Independent menus for Game Over, Pause, and Win states.
+
+### 4. Audio System (`hooks/useGameAudio.ts`)
+
+Audio is synthesized via the Web Audio API (`utils/sound.ts`). The `useGameAudio` hook provides a stable interface for triggering sounds, and `useSnakeGame` synchronizes these sounds with state changes (e.g., detecting when `score` increases to play 'eat').
 
 ## 🚀 Getting Started
 
