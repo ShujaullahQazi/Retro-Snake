@@ -12,7 +12,7 @@ export enum Direction {
 
 export enum GameStatus {
   IDLE = 'IDLE',
-  READY = 'READY', 
+  READY = 'READY',
   PLAYING = 'PLAYING',
   GAME_OVER = 'GAME_OVER',
   GAME_WON = 'GAME_WON',
@@ -34,4 +34,5 @@ export interface GameState {
   highScore: number;
   status: GameStatus;
   speed: number;
+  foodsEatenLevel: number;
 }

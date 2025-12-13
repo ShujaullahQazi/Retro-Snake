@@ -3,6 +3,10 @@ import { Pause } from 'lucide-react';
 import GameBoard from './GameBoard';
 import { Direction, GameStatus, Point } from '../types';
 import { COLORS, SWIPE_THRESHOLD } from '../constants';
+import ScoreBoard from './ScoreBoard';
+import GameOverMenu from './overlays/GameOverMenu';
+import PauseMenu from './overlays/PauseMenu';
+import GameWonMenu from './overlays/GameWonMenu';
 
 interface GameScreenProps {
     score: number;
@@ -51,17 +55,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
             onClick={() => toggleGame()}
         >
             {/* Header Bar */}
-            <div
-                className="flex justify-between items-center px-3 py-2 text-lg font-bold border-b-4 tracking-wider select-none"
-                style={{
-                    backgroundColor: COLORS.SCREEN_BG,
-                    color: COLORS.SCREEN_PIXEL,
-                    borderColor: COLORS.SCREEN_PIXEL
-                }}
-            >
-                <div className="flex gap-4"><span>SC:{score}</span><span>LVL:{level}</span></div>
-                <span>HI:{highScore}</span>
-            </div>
+            <ScoreBoard score={score} level={level} highScore={highScore} />
 
             {/* Game Area */}
             <div className="h-64 w-full md:w-80 md:h-64 relative">
@@ -115,26 +109,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
             {/* GAME OVER State */}
             {status === GameStatus.GAME_OVER && (
-                <div
-                    className="absolute inset-0 flex flex-col items-center justify-center font-bold z-10"
-                    style={{ backgroundColor: `${COLORS.SCREEN_PIXEL}e6`, color: COLORS.SCREEN_BG }}
-                    onClick={(e) => e.stopPropagation()} // Prevent background click from auto-restarting
-                >
-                    <span className="text-3xl mb-2 tracking-widest">GAME OVER</span>
-                    <div className="flex flex-col items-center text-lg gap-1 mb-4">
-                        <span>SCORE: {score}</span>
-                        <span>LEVEL: {level}</span>
-                    </div>
-
-                    <div className="flex flex-col gap-2 w-3/4">
-                        <button
-                            onClick={() => toggleGame()} // Maps to resetGame -> Menu
-                            className="border-2 border-current py-1 hover:bg-white/20 active:translate-y-0.5"
-                        >
-                            MENU
-                        </button>
-                    </div>
-                </div>
+                <GameOverMenu score={score} level={level} onMenu={resetGame} />
             )}
 
             {/* LEVEL COMPLETE State */}
@@ -151,66 +126,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
             {/* GAME WON State */}
             {status === GameStatus.GAME_WON && (
-                <div
-                    className="absolute inset-0 flex flex-col items-center justify-center font-bold z-10 animate-in fade-in duration-500"
-                    style={{ backgroundColor: COLORS.SCREEN_BG, color: COLORS.SCREEN_PIXEL }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div
-                        className="border-4 p-4 mb-4"
-                        style={{
-                            borderColor: COLORS.SCREEN_PIXEL,
-                            boxShadow: `8px 8px 0px ${COLORS.SCREEN_PIXEL}`
-                        }}
-                    >
-                        <span className="text-3xl tracking-widest block text-center mb-2">MISSION</span>
-                        <span className="text-3xl tracking-widest block text-center">COMPLETE</span>
-                    </div>
-                    <div className="flex flex-col items-center text-xl gap-2 mb-6">
-                        <span className="animate-pulse">YOU WON!</span>
-                        <span>FINAL SCORE: {score}</span>
-                    </div>
-                    <button
-                        onClick={() => toggleGame()} // Maps to resetGame -> Menu
-                        className="border-2 border-current px-6 py-1 hover:bg-black/10 active:translate-y-0.5"
-                    >
-                        MENU
-                    </button>
-                </div>
+                <GameWonMenu score={score} onMenu={resetGame} />
             )}
 
             {/* PAUSED State */}
             {status === GameStatus.PAUSED && (
-                <div
-                    className="absolute inset-0 flex items-center justify-center font-bold z-10"
-                    style={{ backgroundColor: `${COLORS.SCREEN_BG}b3`, color: COLORS.SCREEN_PIXEL }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="flex flex-col items-center gap-2 w-full max-w-[200px]">
-                        <Pause size={40} fill={COLORS.SCREEN_PIXEL} color={COLORS.SCREEN_PIXEL} />
-                        <span
-                            className="text-2xl border-4 px-2 mb-2"
-                            style={{
-                                borderColor: COLORS.SCREEN_PIXEL,
-                                backgroundColor: COLORS.SCREEN_BG,
-                                boxShadow: `4px 4px 0px ${COLORS.SCREEN_PIXEL}`
-                            }}
-                        >PAUSED</span>
-
-                        <button
-                            onClick={() => toggleGame()} // RESUME
-                            className="w-full border-2 border-current py-1 hover:bg-black/10 active:translate-y-0.5 bg-white/50"
-                        >
-                            RESUME
-                        </button>
-                        <button
-                            onClick={() => resetGame()} // QUIT
-                            className="w-full border-2 border-current py-1 hover:bg-black/10 active:translate-y-0.5 bg-white/50"
-                        >
-                            QUIT
-                        </button>
-                    </div>
-                </div>
+                <PauseMenu onResume={toggleGame} onQuit={resetGame} />
             )}
         </div>
     );
