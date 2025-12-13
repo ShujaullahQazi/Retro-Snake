@@ -55,6 +55,7 @@ export const initialGameState: GameState = {
     highScore: 0,
     speed: INITIAL_SPEED,
     foodsEatenLevel: 0,
+    moveQueue: [],
 };
 
 export const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -76,6 +77,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 bonusFood: null,
                 bonusFoodTimer: 0,
                 foodsEatenLevel: 0,
+                moveQueue: [],
                 food: generateFood(INITIAL_SNAKE, walls),
             };
         }
@@ -89,6 +91,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 snake: INITIAL_SNAKE,
                 bonusFood: null,
                 foodsEatenLevel: 0,
+                moveQueue: [],
                 direction: INITIAL_DIRECTION,
                 highScore: Math.max(state.score, state.highScore),
             };
@@ -120,6 +123,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                     highScore: Math.max(state.score, state.highScore),
                     bonusFood: null,
                     bonusFoodTimer: 0,
+                    moveQueue: [],
                     food: generateFood(INITIAL_SNAKE, walls),
                 };
             } else if (state.status === GameStatus.PLAYING) {
@@ -147,6 +151,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
                 bonusFood: null,
                 bonusFoodTimer: 0,
                 foodsEatenLevel: 0,
+                moveQueue: [],
                 food: generateFood(INITIAL_SNAKE, walls),
             };
         }
@@ -159,40 +164,39 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             if (state.status === GameStatus.READY) {
                 // Immediate start
                 const newDir = action.direction;
-                // Prevent 180 turn
-                if ((newDir === Direction.UP && state.direction === Direction.DOWN) ||
-                    (newDir === Direction.DOWN && state.direction === Direction.UP) ||
-                    (newDir === Direction.LEFT && state.direction === Direction.RIGHT) ||
-                    (newDir === Direction.RIGHT && state.direction === Direction.LEFT)) {
+                const currentDir = state.direction; // Define local currentDir
+
+                // Same 180 check against current direction
+                if ((newDir === Direction.UP && currentDir === Direction.DOWN) ||
+                    (newDir === Direction.DOWN && currentDir === Direction.UP) ||
+                    (newDir === Direction.LEFT && currentDir === Direction.RIGHT) ||
+                    (newDir === Direction.RIGHT && currentDir === Direction.LEFT)) {
                     return state;
                 }
-                return {
-                    ...state,
-                    direction: newDir,
-                    status: GameStatus.PLAYING
-                };
+                return { ...state, direction: newDir, status: GameStatus.PLAYING };
             }
-            // Normal turn handling logic? 
-            // In the hook, we used a moveQueue. 
-            // For simplicity in reducer, we can just update 'direction' IF it hasn't changed this tick?
-            // OR we just update it and trust the tick happens later.
-            // The issue is pressing Left then Up quickly in one tick.
-            // We'll stick to updating 'direction' directly for now to keep it simple, 
-            // or add 'nextDirection' state if we want queueing.
-            // Refactoring note: "moveQueue" was in a Ref. 
-            // To strictly replicate it, we'd need 'moveQueue' in state.
-            // For now, let's implement basic 180 prevention.
-            const newDir = action.direction;
-            const currentDir = state.direction;
 
-            if ((newDir === Direction.UP && currentDir === Direction.DOWN) ||
-                (newDir === Direction.DOWN && currentDir === Direction.UP) ||
-                (newDir === Direction.LEFT && currentDir === Direction.RIGHT) ||
-                (newDir === Direction.RIGHT && currentDir === Direction.LEFT)) {
+            // Normal Play: Queue logic
+            const queue = [...state.moveQueue];
+            // Last planned direction is either the last in queue or current direction
+            const lastPlannedDir = queue.length > 0 ? queue[queue.length - 1] : state.direction;
+            const newDir = action.direction;
+
+            // Prevent duplicate adjacent moves or 180 turns
+            if ((newDir === Direction.UP && lastPlannedDir === Direction.DOWN) ||
+                (newDir === Direction.DOWN && lastPlannedDir === Direction.UP) ||
+                (newDir === Direction.LEFT && lastPlannedDir === Direction.RIGHT) ||
+                (newDir === Direction.RIGHT && lastPlannedDir === Direction.LEFT) ||
+                newDir === lastPlannedDir) {
                 return state;
             }
 
-            return { ...state, direction: newDir };
+            // Limit queue size to 2 to prevent huge buffers
+            if (queue.length < 2) {
+                queue.push(newDir);
+            }
+
+            return { ...state, moveQueue: queue };
         }
 
         case 'TICK': {
@@ -202,7 +206,17 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             const head = snake[0];
             const nextHead = { ...head };
 
-            switch (state.direction) {
+            // --- PROCESS MOVE QUEUE ---
+            let currentDirection = state.direction;
+            let newQueue = state.moveQueue;
+
+            if (state.moveQueue.length > 0) {
+                const [nextDir, ...rest] = state.moveQueue;
+                currentDirection = nextDir;
+                newQueue = rest;
+            }
+
+            switch (currentDirection) {
                 case Direction.UP: nextHead.y -= 1; break;
                 case Direction.DOWN: nextHead.y += 1; break;
                 case Direction.LEFT: nextHead.x -= 1; break;
@@ -321,6 +335,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
             return {
                 ...state,
                 snake: newSnake,
+                direction: currentDirection, // Update official direction
+                moveQueue: newQueue, // Update queue
                 score: newScore,
                 status: newStatus,
                 food: newFood,

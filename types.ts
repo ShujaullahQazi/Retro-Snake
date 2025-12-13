@@ -35,4 +35,5 @@ export interface GameState {
   status: GameStatus;
   speed: number;
   foodsEatenLevel: number;
+  moveQueue: Direction[];
 }
