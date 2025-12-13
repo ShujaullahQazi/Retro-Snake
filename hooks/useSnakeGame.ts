@@ -4,7 +4,7 @@ import {
   BOARD_WIDTH, BOARD_HEIGHT, INITIAL_SNAKE, INITIAL_DIRECTION,
   INITIAL_SPEED,
   POINTS_NORMAL, POINTS_BIG, FOODS_TO_BONUS,
-  BONUS_DURATION_MS, FOODS_PER_LEVEL, MAX_LEVEL, LEVEL_WALLS
+  BONUS_DURATION_MS, FOODS_PER_LEVEL, MAX_LEVEL, LEVEL_WALLS, LEVEL_CONFIGS
 } from '../constants';
 import { useGameLoop } from './useGameLoop';
 import { useGameAudio } from './useGameAudio';
@@ -271,12 +271,37 @@ export const useSnakeGame = () => {
       case Direction.RIGHT: nextHead.x += 1; break;
     }
 
+    // Wrap / Wall Logic
+    const config = LEVEL_CONFIGS[levelRef.current] || { wrapX: false, wrapY: false };
+    let hitWall = false;
+
+    // Check X Boundaries
+    if (nextHead.x < 0 || nextHead.x >= BOARD_WIDTH) {
+      if (config.wrapX) {
+        const isBlocked = config.blockedX?.some(([min, max]) => head.y >= min && head.y <= max);
+        if (isBlocked) hitWall = true;
+        else nextHead.x = nextHead.x < 0 ? BOARD_WIDTH - 1 : 0;
+      } else {
+        hitWall = true;
+      }
+    }
+
+    // Check Y Boundaries
+    if (nextHead.y < 0 || nextHead.y >= BOARD_HEIGHT) {
+      if (config.wrapY) {
+        const isBlocked = config.blockedY?.some(([min, max]) => head.x >= min && head.x <= max);
+        if (isBlocked) hitWall = true;
+        else nextHead.y = nextHead.y < 0 ? BOARD_HEIGHT - 1 : 0;
+      } else {
+        hitWall = true;
+      }
+    }
+
     const walls = getWalls(levelRef.current);
 
     // 5. Collision Detection
     if (
-      nextHead.x < 0 || nextHead.x >= BOARD_WIDTH ||
-      nextHead.y < 0 || nextHead.y >= BOARD_HEIGHT ||
+      hitWall ||
       snake.some(s => s.x === nextHead.x && s.y === nextHead.y) ||
       walls.some(w => w.x === nextHead.x && w.y === nextHead.y)
     ) {
